@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FamSplit Ledger</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        ashok: '#F59E0B',
+                        my3: '#EC4899',
+                        r9: '#10B981',
+                        surface: {
+                            light: '#FFFFFF',
+                            dark: '#000000',
+                            grayLight: '#F7F7F9',
+                            grayDark: '#111111'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+                        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+        /* Hide scrollbar for clean aesthetic */
+        ::-webkit-scrollbar {
+            display: none;
+        }
+        .touch-target {
+            min-height: 44px;
+            min-width: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-slide-down {
+            animation: slideDown 0.3s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="bg-surface-light dark:bg-surface-dark text-slate-900 dark:text-slate-100 min-h-screen flex flex-col antialiased">
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none w-full max-w-sm px-4"></div>
+
+    <!-- Header -->
+    <header class="sticky top-0 z-40 bg-surface-light/80 dark:bg-surface-dark/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-white/10">
+        <div class="max-w-2xl mx-auto px-5 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-slate-900 dark:bg-white text-white dark:text-black flex items-center justify-center font-bold text-sm">
+                    ₹
+                </div>
+                <h1 class="text-[15px] font-semibold tracking-tight">FamSplit Ledger</h1>
+            </div>
+            
+            <div class="flex items-center gap-1">
+                <button onclick="toggleAudio()" id="audio-toggle-btn" class="touch-target text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors rounded-full">
+                    <i class="fa-solid fa-volume-high text-sm" id="audio-icon"></i>
+                </button>
+                <button onclick="toggleTheme()" class="touch-target text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors rounded-full">
+                    <i class="fa-solid fa-moon text-sm dark:hidden"></i>
+                    <i class="fa-solid fa-sun text-sm hidden dark:block"></i>
+                </button>
+                <button onclick="openWebhookPanel()" class="ml-2 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-white/10 text-xs font-semibold text-slate-900 dark:text-white flex items-center gap-2 hover:bg-slate-200 dark:hover:bg-white/20 transition-colors">
+                    <i class="fa-solid fa-satellite-dish text-[10px] text-emerald-500"></i> API
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 max-w-2xl mx-auto w-full px-5 py-8 space-y-12">
+        
+        <!-- Total Spend -->
+        <section class="space-y-1 animate-slide-down" style="animation-delay: 0.1s;">
+            <p class="text-xs font-medium text-slate-500 uppercase tracking-widest">Total Household Spend</p>
+            <h2 id="total-spend" class="text-5xl sm:text-6xl font-black tracking-tighter text-slate-900 dark:text-white">₹0</h2>
+        </section>
+
+        <!-- Member Progress Rows -->
+        <section class="space-y-6 animate-slide-down" style="animation-delay: 0.2s;">
+            <div id="members-container" class="space-y-5">
+                <!-- Injected via JS -->
+            </div>
+        </section>
+
+        <!-- Analytics -->
+        <section class="space-y-4 animate-slide-down" style="animation-delay: 0.3s;">
+            <div class="border-b border-slate-200/50 dark:border-white/10 pb-2">
+                <h3 class="text-sm font-semibold">Spending by Category</h3>
+            </div>
+            <div class="h-64 flex items-center justify-center relative w-full max-w-[250px] mx-auto">
+                <canvas id="categoryChart"></canvas>
+            </div>
+        </section>
+
+        <!-- Transaction Feed -->
+        <section class="space-y-4 animate-slide-down" style="animation-delay: 0.4s;">
+            <div class="flex items-center justify-between border-b border-slate-200/50 dark:border-white/10 pb-2">
+                <h3 class="text-sm font-semibold">Live Transaction Feed</h3>
+                <span class="text-[10px] font-mono text-slate-400 bg-slate-100 dark:bg-white/10 px-2 py-1 rounded">WEBHOOK AUTO-SYNC</span>
+            </div>
+            <div id="transactions-container" class="divide-y divide-slate-100 dark:divide-white/5">
+                <!-- Injected via JS -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-8 py-8 border-t border-slate-200/50 dark:border-white/10 text-center space-y-4">
+        <p class="text-xs text-slate-400">Zero-Touch Automation. Pure Read-Only Ledger.</p>
+        <button onclick="confirmReset()" class="text-[10px] font-semibold text-rose-500 hover:text-rose-600 uppercase tracking-wider">Reset Demo Data</button>
+    </footer>
+
+    <!-- Webhook Simulator Panel (Overlay) -->
+    <div id="webhook-panel" class="fixed inset-0 z-50 bg-surface-light dark:bg-surface-dark transform translate-y-full transition-transform duration-300 flex flex-col">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200/50 dark:border-white/10">
+            <h3 class="text-lg font-bold">UPI Webhook Console</h3>
+            <button onclick="closeWebhookPanel()" class="touch-target bg-slate-100 dark:bg-white/10 rounded-full text-slate-500 hover:text-slate-900 dark:hover:text-white">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div class="p-5 space-y-6 overflow-y-auto flex-1">
+            <p class="text-sm text-slate-500 leading-relaxed">
+                Simulate incoming background SMS / API requests. In a real setup, apps like Tasker or Zapier send a POST request here, and this ledger updates instantly without human input.
+            </p>
+            
+            <div class="space-y-3">
+                <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Test Payloads</h4>
+                
+                <button onclick="simulateWebhook('ashok', 450, 'Swiggy', 'Food')" class="w-full flex items-center justify-between p-4 rounded-2xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200/50 dark:border-amber-500/20 active:scale-[0.98] transition-transform text-left">
+                    <div>
+                        <p class="font-bold text-amber-700 dark:text-amber-400 text-sm">Ashok paid Swiggy</p>
+                        <p class="text-xs text-amber-600/70 dark:text-amber-400/70 mt-0.5">Categorized as Food</p>
+                    </div>
+                    <span class="font-mono font-bold text-amber-700 dark:text-amber-400">₹450</span>
+                </button>
+
+                <button onclick="simulateWebhook('my3', 1200, 'D-Mart', 'Groceries')" class="w-full flex items-center justify-between p-4 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200/50 dark:border-rose-500/20 active:scale-[0.98] transition-transform text-left">
+                    <div>
+                        <p class="font-bold text-rose-700 dark:text-rose-400 text-sm">my3 paid D-Mart</p>
+                        <p class="text-xs text-rose-600/70 dark:text-rose-400/70 mt-0.5">Categorized as Groceries</p>
+                    </div>
+                    <span class="font-mono font-bold text-rose-700 dark:text-rose-400">₹1,200</span>
+                </button>
+
+                <button onclick="simulateWebhook('r9', 899, 'Jio Fiber', 'Bills')" class="w-full flex items-center justify-between p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200/50 dark:border-emerald-500/20 active:scale-[0.98] transition-transform text-left">
+                    <div>
+                        <p class="font-bold text-emerald-700 dark:text-emerald-400 text-sm">r9 paid Jio Fiber</p>
+                        <p class="text-xs text-emerald-600/70 dark:text-emerald-400/70 mt-0.5">Categorized as Bills</p>
+                    </div>
+                    <span class="font-mono font-bold text-emerald-700 dark:text-emerald-400">₹899</span>
+                </button>
+                
+                <button onclick="simulateRandomWebhook()" class="w-full flex items-center justify-center p-4 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/10 active:scale-[0.98] transition-transform text-sm font-semibold mt-4">
+                    <i class="fa-solid fa-shuffle mr-2"></i> Random Incoming Transaction
+                </button>
+            </div>
+            
+            <div class="mt-8 p-4 bg-surface-grayLight dark:bg-surface-grayDark rounded-xl border border-slate-200/50 dark:border-white/10">
+                <p class="text-[10px] font-mono text-slate-400 mb-2">ENDPOINT (SIMULATED)</p>
+                <code class="text-xs text-slate-700 dark:text-slate-300 break-all">POST https://api.famsplit.app/v1/ingest</code>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div id="modal-confirm" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm hidden opacity-0 transition-opacity">
+        <div class="bg-surface-light dark:bg-surface-dark border border-slate-200/50 dark:border-white/10 max-w-xs w-full p-6 text-center space-y-4 rounded-3xl shadow-2xl transform scale-95 transition-transform duration-300" id="modal-confirm-inner">
+            <h3 class="text-lg font-bold text-slate-900 dark:text-white" id="confirm-title">Reset Data?</h3>
+            <p class="text-sm text-slate-500" id="confirm-desc">This will erase all recorded transactions and reload demo data.</p>
+            <div class="flex gap-2 pt-2">
+                <button onclick="closeConfirmModal()" class="flex-1 py-3 text-sm font-semibold text-slate-600 bg-slate-100 dark:bg-white/10 dark:text-slate-300 rounded-xl">Cancel</button>
+                <button id="confirm-btn-action" class="flex-1 py-3 text-sm font-semibold text-white bg-slate-900 dark:bg-white dark:text-black rounded-xl">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logic -->
+    <script>
+        // --- Core Setup & State ---
+        const MEMBERS = {
+            ashok: { id: 'ashok', name: 'Ashok', avatar: 'A', color: '#F59E0B', textLight: 'text-amber-600', textDark: 'dark:text-amber-400', bgLight: 'bg-amber-100', bgDark: 'dark:bg-amber-500/20' },
+            my3: { id: 'my3', name: 'my3', avatar: 'M', color: '#EC4899', textLight: 'text-rose-600', textDark: 'dark:text-rose-400', bgLight: 'bg-rose-100', bgDark: 'dark:bg-rose-500/20' },
+            r9: { id: 'r9', name: 'r9', avatar: 'R', color: '#10B981', textLight: 'text-emerald-600', textDark: 'dark:text-emerald-400', bgLight: 'bg-emerald-100', bgDark: 'dark:bg-emerald-500/20' }
+        };
+
+        const CATEGORY_COLORS = {
+            'Food': '#F59E0B',
+            'Groceries': '#EC4899',
+            'Bills': '#10B981',
+            'Shopping': '#3B82F6',
+            'Transport': '#8B5CF6',
+            'Other': '#64748B'
+        };
+
+        const CATEGORY_ICONS = {
+            'Food': 'fa-burger',
+            'Groceries': 'fa-basket-shopping',
+            'Bills': 'fa-bolt',
+            'Shopping': 'fa-bag-shopping',
+            'Transport': 'fa-car',
+            'Other': 'fa-receipt'
+        };
+
+        let state = {
+            transactions: []
+        };
+        
+        let chartInstance = null;
+        let audioEnabled = true;
+
+        // --- Audio Engine ---
+        function toggleAudio() {
+            audioEnabled = !audioEnabled;
+            const icon = document.getElementById('audio-icon');
+            if (audioEnabled) {
+                icon.className = "fa-solid fa-volume-high text-sm";
+                playPop();
+            } else {
+                icon.className = "fa-solid fa-volume-xmark text-sm opacity-50";
+            }
+        }
+
+        function playPop() {
+            if (!audioEnabled) return;
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.1);
+            } catch (e) {}
+        }
+
+        function playChaChing() {
+            if (!audioEnabled) return;
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const now = ctx.currentTime;
+                // High bell sequence
+                [1046.50, 1318.51, 1567.98].forEach((freq, i) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now + i * 0.08);
+                    gain.gain.setValueAtTime(0.1, now + i * 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.3);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(now + i * 0.08);
+                    osc.stop(now + i * 0.08 + 0.3);
+                });
+            } catch (e) {}
+        }
+
+        // --- Init & Storage ---
+        window.onload = () => {
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                document.documentElement.classList.add('dark');
+            }
+            loadData();
+            render();
+        };
+
+        function toggleTheme() {
+            playPop();
+            document.documentElement.classList.toggle('dark');
+            if (chartInstance) renderChart(); // re-render chart for colors
+        }
+
+        function loadData() {
+            const saved = localStorage.getItem('FamSplit_Ledger_Data');
+            if (saved) {
+                try {
+                    state = JSON.parse(saved);
+                } catch(e) { resetDemoData(); }
+            } else {
+                resetDemoData();
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('FamSplit_Ledger_Data', JSON.stringify(state));
+        }
+
+        function resetDemoData() {
+            const d = new Date();
+            const formatDate = (daysAgo) => {
+                const temp = new Date(d);
+                temp.setDate(temp.getDate() - daysAgo);
+                return temp.toISOString();
+            };
+
+            state.transactions = [
+                { id: '1', payer: 'ashok', amount: 3600, merchant: 'D-Mart Supermarket', category: 'Groceries', date: formatDate(2) },
+                { id: '2', payer: 'my3', amount: 2400, merchant: 'BESCOM Electricity', category: 'Bills', date: formatDate(1) },
+                { id: '3', payer: 'r9', amount: 1050, merchant: 'Swiggy Instamart', category: 'Food', date: formatDate(0) }
+            ];
+            saveData();
+        }
+
+        function confirmReset() {
+            playPop();
+            const modal = document.getElementById('modal-confirm');
+            const inner = document.getElementById('modal-confirm-inner');
+            modal.classList.remove('hidden');
+            // Reflow
+            void modal.offsetWidth;
+            modal.classList.remove('opacity-0');
+            inner.classList.remove('scale-95');
+            
+            document.getElementById('confirm-btn-action').onclick = () => {
+                resetDemoData();
+                render();
+                closeConfirmModal();
+                showToast('Ledger reset to demo state.');
+            };
+        }
+
+        function closeConfirmModal() {
+            playPop();
+            const modal = document.getElementById('modal-confirm');
+            const inner = document.getElementById('modal-confirm-inner');
+            modal.classList.add('opacity-0');
+            inner.classList.add('scale-95');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        // --- UI Rendering ---
+        function formatINR(amount) {
+            return `₹${amount.toLocaleString('en-IN')}`;
+        }
+
+        function render() {
+            let totalSpend = 0;
+            const spendMap = { ashok: 0, my3: 0, r9: 0 };
+            
+            state.transactions.forEach(t => {
+                totalSpend += t.amount;
+                if(spendMap[t.payer] !== undefined) spendMap[t.payer] += t.amount;
+            });
+
+            const spendValues = Object.values(spendMap);
+            const maxSpend = Math.max(...spendValues);
+            const minSpend = Math.min(...spendValues);
+
+            // 1. Total Spend
+            document.getElementById('total-spend').innerText = formatINR(totalSpend);
+
+            // 2. Members Progress
+            const membersHtml = Object.values(MEMBERS).map(m => {
+                const spent = spendMap[m.id];
+                const pct = totalSpend > 0 ? (spent / totalSpend) * 100 : 0;
+                
+                let badge = '';
+                if (totalSpend > 0 && maxSpend > 0 && maxSpend !== minSpend) {
+                    if (spent === maxSpend) {
+                        badge = `<span class="ml-2 text-[10px] bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full font-semibold tracking-tight animate-slide-down">Top Spender 👑</span>`;
+                    } else if (spent === minSpend) {
+                        badge = `<span class="ml-2 text-[10px] bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full font-semibold tracking-tight animate-slide-down">Light Spender 🍃</span>`;
+                    }
+                }
+
+                return `
+                    <div class="space-y-2 group">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-7 h-7 rounded-full ${m.bgLight} ${m.bgDark} ${m.textLight} ${m.textDark} flex items-center justify-center text-xs font-bold font-mono transition-transform group-hover:scale-110">
+                                    ${m.avatar}
+                                </div>
+                                <div class="flex items-center">
+                                    <span class="text-sm font-semibold">${m.name}</span>
+                                    ${badge}
+                                </div>
+                            </div>
+                            <span class="text-sm font-mono font-bold">${formatINR(spent)}</span>
+                        </div>
+                        <div class="h-1 w-full bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
+                            <div class="h-full rounded-full transition-all duration-1000 ease-out" style="width: ${pct}%; background-color: ${m.color}"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            document.getElementById('members-container').innerHTML = membersHtml;
+
+            // 3. Transactions List
+            const sortedTx = [...state.transactions].sort((a,b) => new Date(b.date) - new Date(a.date));
+            if (sortedTx.length === 0) {
+                document.getElementById('transactions-container').innerHTML = `<p class="py-6 text-sm text-slate-400 text-center">No transactions recorded.</p>`;
+            } else {
+                document.getElementById('transactions-container').innerHTML = sortedTx.map(t => {
+                    const m = MEMBERS[t.payer];
+                    const icon = CATEGORY_ICONS[t.category] || 'fa-receipt';
+                    const dateObj = new Date(t.date);
+                    const dateStr = dateObj.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+                    
+                    return `
+                        <div class="py-4 flex items-center justify-between hover:bg-slate-50/50 dark:hover:bg-white-[0.02] transition-colors -mx-2 px-2 rounded-xl">
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-500 dark:text-slate-400">
+                                    <i class="fa-solid ${icon} text-sm"></i>
+                                </div>
+                                <div>
+                                    <p class="font-semibold text-sm leading-tight">${t.merchant}</p>
+                                    <p class="text-xs text-slate-500 mt-0.5">${dateStr} • Paid by ${m.name}</p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <p class="font-mono font-bold text-sm">${formatINR(t.amount)}</p>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            // 4. Chart
+            renderChart();
+        }
+
+        function renderChart() {
+            const catMap = {};
+            state.transactions.forEach(t => {
+                catMap[t.category] = (catMap[t.category] || 0) + t.amount;
+            });
+            
+            const labels = Object.keys(catMap);
+            const data = Object.values(catMap);
+            const bgColors = labels.map(l => CATEGORY_COLORS[l] || '#cbd5e1');
+
+            const ctx = document.getElementById('categoryChart').getContext('2d');
+            
+            // Text color based on theme
+            const isDark = document.documentElement.classList.contains('dark');
+            const textColor = isDark ? '#94a3b8' : '#64748b';
+
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            if(data.length === 0) {
+                // Empty state donut
+                chartInstance = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: { labels: ['No Data'], datasets: [{ data: [1], backgroundColor: [isDark ? '#1e293b' : '#f1f5f9'], borderWidth: 0 }] },
+                    options: { cutout: '80%', plugins: { legend: { display: false }, tooltip: { enabled: false } } }
+                });
+                return;
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: bgColors,
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '75%',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                            titleColor: isDark ? '#ffffff' : '#0f172a',
+                            bodyColor: isDark ? '#cbd5e1' : '#475569',
+                            bodyFont: { family: 'Inter', size: 13 },
+                            padding: 12,
+                            borderColor: isDark ? '#334155' : '#e2e8f0',
+                            borderWidth: 1,
+                            displayColors: true,
+                            boxPadding: 4,
+                            callbacks: {
+                                label: function(context) {
+                                    return ` ₹${context.raw.toLocaleString('en-IN')}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- Webhook Simulation ---
+        function openWebhookPanel() {
+            playPop();
+            const panel = document.getElementById('webhook-panel');
+            panel.classList.remove('translate-y-full');
+        }
+
+        function closeWebhookPanel() {
+            playPop();
+            const panel = document.getElementById('webhook-panel');
+            panel.classList.add('translate-y-full');
+        }
+
+        function simulateWebhook(payer, amount, merchant, category) {
+            playChaChing();
+            
+            const newTx = {
+                id: Date.now().toString(),
+                payer, amount, merchant, category,
+                date: new Date().toISOString()
+            };
+            
+            state.transactions.unshift(newTx);
+            saveData();
+            render();
+            
+            closeWebhookPanel();
+            showToast(`API: Added ${merchant} (₹${amount})`);
+        }
+
+        function simulateRandomWebhook() {
+            const payers = ['ashok', 'my3', 'r9'];
+            const merch = [
+                { m: 'Uber', c: 'Transport', p: [150, 250, 450] },
+                { m: 'Amazon', c: 'Shopping', p: [999, 1499, 299] },
+                { m: 'Zomato', c: 'Food', p: [350, 520, 890] },
+                { m: 'Blinkit', c: 'Groceries', p: [400, 750, 1100] }
+            ];
+            
+            const payer = payers[Math.floor(Math.random() * payers.length)];
+            const item = merch[Math.floor(Math.random() * merch.length)];
+            const amount = item.p[Math.floor(Math.random() * item.p.length)];
+            
+            simulateWebhook(payer, amount, item.m, item.c);
+        }
+
+        // --- UI Utilities ---
+        function showToast(msg) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `px-4 py-3 rounded-2xl shadow-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-semibold flex items-center justify-between transform transition-all duration-300 translate-y-[-100%] opacity-0`;
+            toast.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid fa-satellite-dish text-emerald-400 dark:text-emerald-500"></i>
+                    <span>${msg}</span>
+                </div>
+            `;
+            container.appendChild(toast);
+            
+            // Animate in
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-[-100%]', 'opacity-0');
+            });
+            
+            // Animate out
+            setTimeout(() => {
+                toast.classList.add('translate-y-[-100%]', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
